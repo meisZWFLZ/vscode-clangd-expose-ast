@@ -52,24 +52,34 @@ class ASTFeature implements vscodelc.StaticFeature {
         vscode.commands.registerTextEditorCommand(
             'clangd.ast',
             async (editor, _edit) => {
-              const converter = this.context.client.code2ProtocolConverter;
               const item =
-                  await this.context.client.sendRequest(ASTRequestType, {
-                    textDocument:
-                        converter.asTextDocumentIdentifier(editor.document),
-                    range: converter.asRange(editor.selection),
-                  });
+                  await this.retrieveAst(editor.selection, editor.document);
               if (!item)
                 vscode.window.showInformationMessage(
                     'No AST node at selection');
               adapter.setRoot(item ?? undefined, editor.document.uri);
+            }),
+        vscode.commands.registerCommand(
+            'clangd.ast.retrieve',
+            (range: vscode.Range, uri: vscode.Uri): Promise<ASTNode | null> => {
+              const document =
+                  vscode.workspace.textDocuments.find((doc) => doc.uri == uri);
+              if (!document)
+                throw 'document was not found';
+              return this.retrieveAst(range, document);
             }),
         // Clicking "close" will empty the adapter, which in turn hides the
         // view.
         vscode.commands.registerCommand(
             'clangd.ast.close', () => adapter.setRoot(undefined, undefined)));
   }
-
+  private retrieveAst(range: vscode.Range, document: vscode.TextDocument): Promise<ASTNode | null> {
+    const converter = this.context.client.code2ProtocolConverter;
+    return this.context.client.sendRequest(ASTRequestType, {
+      textDocument: converter.asTextDocumentIdentifier(document),
+      range: converter.asRange(range),
+    });
+  }
   fillClientCapabilities(capabilities: vscodelc.ClientCapabilities) {}
 
   // The "Show AST" command is enabled if the server advertises the capability.
