@@ -8,6 +8,7 @@ import {ClangdContext} from './clangd-context';
 export function activate(context: ClangdContext) {
   const feature = new ASTFeature(context);
   context.client.registerFeature(feature);
+  context.registerAPIFeature('retrieveAst', feature.retrieveAstAPI)
 }
 
 // The wire format: we send a position, and get back a tree of ASTNode.
@@ -15,7 +16,7 @@ interface ASTParams {
   textDocument: vscodelc.TextDocumentIdentifier;
   range: vscodelc.Range;
 }
-interface ASTNode {
+export interface ASTNode {
   role: string;    // e.g. expression
   kind: string;    // e.g. BinaryOperator
   detail?: string; // e.g. ||
@@ -54,11 +55,7 @@ class ASTFeature implements vscodelc.StaticFeature {
             async (editor, _edit) => {
               const converter = this.context.client.code2ProtocolConverter;
               const item =
-                  await this.context.client.sendRequest(ASTRequestType, {
-                    textDocument:
-                        converter.asTextDocumentIdentifier(editor.document),
-                    range: converter.asRange(editor.selection),
-                  });
+                  await this.retrieveAst(editor.selection, editor.document);
               if (!item)
                 vscode.window.showInformationMessage(
                     'No AST node at selection');
@@ -68,6 +65,22 @@ class ASTFeature implements vscodelc.StaticFeature {
         // view.
         vscode.commands.registerCommand(
             'clangd.ast.close', () => adapter.setRoot(undefined, undefined)));
+  }
+  private retrieveAst(range: vscode.Range,
+                      document: vscode.TextDocument): Promise<ASTNode|null> {
+    const converter = this.context.client.code2ProtocolConverter;
+    return this.context.client.sendRequest(ASTRequestType, {
+      textDocument: converter.asTextDocumentIdentifier(document),
+      range: converter.asRange(range),
+    });
+  }
+
+  public retrieveAstAPI = (range: vscode.Range, uri: vscode.Uri): Promise<ASTNode|null> => {
+    const document =
+        vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
+    if (!document)
+      throw 'document was not found';
+    return this.retrieveAst(range, document);
   }
 
   fillClientCapabilities(capabilities: vscodelc.ClientCapabilities) {}

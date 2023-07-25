@@ -4,6 +4,7 @@ import * as vscodelc from 'vscode-languageclient/node';
 import * as ast from './ast';
 import * as config from './config';
 import * as configFileWatcher from './config-file-watcher';
+import {ExtensionAPI} from './extension-api';
 import * as fileStatus from './file-status';
 import * as inactiveRegions from './inactive-regions';
 import * as inlayHints from './inlay-hints';
@@ -59,6 +60,7 @@ class EnableEditsNearCursorFeature implements vscodelc.StaticFeature {
 export class ClangdContext implements vscode.Disposable {
   subscriptions: vscode.Disposable[] = [];
   client!: ClangdLanguageClient;
+  api: ExtensionAPI = {} as ExtensionAPI;
 
   async activate(globalStoragePath: string,
                  outputChannel: vscode.OutputChannel) {
@@ -173,6 +175,13 @@ export class ClangdContext implements vscode.Disposable {
   get visibleClangdEditors(): vscode.TextEditor[] {
     return vscode.window.visibleTextEditors.filter(
         (e) => isClangdDocument(e.document));
+  }
+
+  registerAPIFeature<F extends keyof ExtensionAPI>(feature: F,
+                                                   implementation:
+                                                       ExtensionAPI[F]) {
+    this.api[feature] = implementation;
+    console.log(`APIFeature "${feature}" added!`)
   }
 
   dispose() {
